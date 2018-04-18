@@ -4,6 +4,7 @@ from protocols.cva_1_0_0 import *
 from protocols.migration.migration import Migration2_1To3
 from protocols.migration.migration_reports_3_0_0_to_reports_4_0_0 import MigrateReports3To4
 from protocols.migration.migration_reports_4_0_0_to_reports_5_0_0 import MigrateReports400To500
+from protocols.migration.participants import MigrationParticipants100To103, MigrationReportsToParticipants1
 
 # Models 2.1.0 imports
 from protocols.reports_2_1_0 import ClinicalReportRD as ClinicalReportRD_2_1_0
@@ -31,6 +32,10 @@ from protocols.reports_5_0_0 import ClinicalReportCancer as ClinicalReportCancer
 from protocols.reports_5_0_0 import InterpretationRequestRD as InterpretationRequestRD_5_0_0
 from protocols.reports_5_0_0 import CancerInterpretedGenome as CancerInterpretedGenome_5_0_0
 from protocols.reports_5_0_0 import CancerInterpretationRequest as CancerInterpretationRequest_5_0_0
+
+from protocols.participant_1_0_3 import Pedigree as Pedigree_1_0_3
+from protocols.participant_1_0_0 import Pedigree as Pedigree_1_0_0
+from protocols.reports_3_0_0 import Pedigree as Pedigree_reports_3_0_0
 
 from gel2decipher.clients.rest_client import RestClient
 from gel2decipher.clients.model_validator import PayloadValidation
@@ -344,3 +349,27 @@ class CipApiClient(RestClient):
             return cr_v500
 
         raise ValueError("CLINICAL REPORT RD IS NOT IN VERSIONS: [2.1.0, 3.0.0, 4.0.0, 5.0.0]")
+
+    @staticmethod
+    def migrate_pedigree_to_version_1_0_3(json_dict):
+        ped_v103 = None
+
+        if PayloadValidation(klass=Pedigree_1_0_3, payload=json_dict).is_valid:
+            ped_v103 = Pedigree_1_0_3.fromJsonDict(jsonDict=json_dict)
+            logging.info("Pedigree in models participants 1.0.3")
+
+        elif PayloadValidation(klass=Pedigree_1_0_0, payload=json_dict).is_valid:
+            ped_v100 = Pedigree_1_0_0.fromJsonDict(jsonDict=json_dict)
+            ped_v103 = MigrationParticipants100To103().migrate_pedigree(old_pedigree=ped_v100)
+            logging.info("Pedigree in models participants 1.0.0")
+
+        elif PayloadValidation(klass=Pedigree_reports_3_0_0, payload=json_dict).is_valid:
+            ped_v300 = Pedigree_reports_3_0_0.fromJsonDict(jsonDict=json_dict)
+            ped_v100 = MigrationReportsToParticipants1().migrate_pedigree(pedigree=ped_v300)
+            ped_v103 = MigrationParticipants100To103().migrate_pedigree(old_pedigree=ped_v100)
+            logging.info("Pedigree in models reports 3.1.0")
+
+        if ped_v103 is not None:
+            return ped_v103
+
+        raise ValueError("PEDIGREE IS NOT IN VERSIONS: [1.0.3, 1.0.0, reports 2.1.0]")

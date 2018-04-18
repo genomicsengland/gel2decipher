@@ -53,7 +53,7 @@ class RestClient(object):
         self._verify_response(response)
         return json.loads(response.content) if response.content else None
 
-    def get(self, endpoint, url_params={}):
+    def get(self, endpoint, url_params={}, session=True):
         if endpoint is None:
             raise ValueError("Must define endpoint before get")
         url = self.build_url(self.url_base, endpoint)
@@ -62,7 +62,11 @@ class RestClient(object):
             method="GET",
             url="{}?{}".format(url, "&".join(["{}={}".format(k, v) for k, v in url_params.iteritems()]))
         ))
-        response = self.session.get(url, params=url_params, headers=self.headers)
+        if session:
+            response = self.session.get(url, params=url_params, headers=self.headers)
+        else:
+            response = requests.get(url, params=url_params, headers=self.headers)
+        self._verify_response(response)
         return json.loads(response.content) if response.content else None
 
     def delete(self, endpoint, url_params={}):
