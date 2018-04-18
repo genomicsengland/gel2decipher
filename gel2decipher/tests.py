@@ -1,7 +1,9 @@
-import requests
-import json
 import os
 from unittest import TestCase
+from requests.exceptions import HTTPError, InvalidSchema
+
+from gel2decipher.clients.decipher_client import DecipherClient
+from gel2decipher.models.decipher_models import *
 
 
 class TestDecipherApi(TestCase):
@@ -13,118 +15,239 @@ class TestDecipherApi(TestCase):
     URL_BASE = "https://decipher.sanger.ac.uk/API/"
 
     def setUp(self):
-        # queries for the basic information about user and project
-        response = requests.get("{url_base}info".format(url_base=self.URL_BASE), headers=self.AUTH_HEADERS)
-        self.assertTrue(response.status_code == 200, response.content)
-        self.project_id = response.json()["user"]["project"]["project_id"]
-        self.user_id = response.json()["user"]["user_id"]
+
+        self.decipher = DecipherClient(url_base=self.URL_BASE, system_key=self.SYSTEM_KEY, user_key=self.USER_KEY)
 
         # PRE: a project and adequate users have been created
-
         # Step 1: create a patient
-        self.patient1 = {
-            "sex": "46XY",
-            "reference": "martin!",
-            "project_id": self.project_id,
-            "consent": "no",   # TODO: consent is set to yes, clarify if we want to share variants or not
-            # "user_id": user_id,
+
+        self.patient1 = Patient(
+            sex="46XY",
+            reference="evaristo",
+            project_id=self.decipher.project_id,
+            consent="No",   # TODO: consent is set to yes, clarify if we want to share variants or not
+            user_id=self.decipher.user_id,
             #  TODO: the user id must be set for consent=yes and it must be clinician/coordinator in this project
-            "note": "this is just testing...",
-            "age": "Prenatal",
-            "prenatal": 10
-        }
-        self.patient2 = {
-            "sex": "46XX",
-            "reference": "claudia!",
-            "project_id": self.project_id,
-            "consent": "no",  # TODO: consent is set to yes, clarify if we want to share variants or not
-            # "user_id": user_id,
+            note="this is just testing...",
+            age="Prenatal",
+            prenatal=10
+        )
+        self.patient2 = Patient(
+            sex="46XX",
+            reference="hermenegildo",
+            project_id=self.decipher.project_id,
+            consent="No",  # TODO: consent is set to yes, clarify if we want to share variants or not
+            user_id=self.decipher.user_id,
             #  TODO: the user id must be set for consent=yes and it must be clinician/coordinator in this project
-            "note": "this is just testing...",
-            "age": "unknown"
-        }
-        response = requests.post("{url_base}projects/{project_id}/patients".format(
-            url_base=self.URL_BASE, project_id=self.project_id),
-            headers=self.AUTH_HEADERS, data=json.dumps([self.patient1, self.patient2]))
-        self.assertTrue(response.status_code == 200, response.content)
-        patient_ids = [x["patient_id"] for x in response.json()]
+            note="this is just testing...",
+            age="unknown"
+        )
+
+        patient_ids = self.decipher.create_patients([self.patient1, self.patient2])
         self.patient1_id = patient_ids[0]
         self.patient2_id = patient_ids[1]
 
     def tearDown(self):
-        response = requests.delete("{url_base}patients/{patient_id}".format(
-            url_base=self.URL_BASE, patient_id=self.patient1_id), headers=self.AUTH_HEADERS)
-        self.assertTrue(response.status_code == 200, response.content)
-        response = requests.delete("{url_base}patients/{patient_id}".format(
-            url_base=self.URL_BASE, patient_id=self.patient2_id), headers=self.AUTH_HEADERS)
-        self.assertTrue(response.status_code == 200, response.content)
+        self.decipher.delete_patient(self.patient1_id)
+        self.decipher.delete_patient(self.patient2_id)
 
     def test_existing_patient(self):
         # ... if the patient already exists
-        response = requests.post("{url_base}projects/{project_id}/patients".format(
-            url_base=self.URL_BASE, project_id=self.project_id),
-            headers=self.AUTH_HEADERS, data=json.dumps([self.patient1]))
-        self.assertTrue(response.status_code == 400)
-        self.assertTrue(response.json()["errors"][0] ==
-                        "A patient with this internal reference number or id already exists for this project.")
+        try:
+            self.decipher.create_patients([self.patient1])
+            self.assertTrue(False)
+        except HTTPError, ex:
+            self.assertEqual(ex.response.status_code, 400, "Expected 400 for existing patient")
 
-    def test_variant1(self):
+    def test_create_snv(self):
         # rs397507564
-        variant = {
-            "patient_id": self.patient1_id,
-            "assembly": "GRCh37/hg19",
-            "chr": "7",
-            "start": 117119258,
-            "ref_allele": "TCTC",
-            "alt_allele": "T",
-            "genotype": "Homozygous",
-            "user_transcript": "ENST00000546407",
-            "user_gene": "CFTR",
-            "shared": "no"
-        }
-        variants = self.create_variants([variant], self.patient1_id)
-        variant_ids = [x["patient_snv_id"] for x in variants]
-        for x in variants:
-            self.assertTrue(x["patient_snv_id"] is not None, "Empty snv id?")
-        self.delete_variants(variant_ids)
+        variant = Snv(
+            patient_id=self.patient1_id,
+            assembly="GRCh37/hg19",
+            chr="7",
+            start=117119258,
+            ref_allele="TCTC",
+            alt_allele="T",
+            genotype="Homozygous",
+            user_transcript="ENST00000546407",
+            user_gene="CFTR",
+            shared="no"
+        )
+        variant_ids = self.decipher.create_snvs([variant], self.patient1_id)
+        self.decipher.delete_snv(variant_ids[0])
+
+    def test_duplicated_snv(self):
+        # rs397507564
+        variant = Snv(
+            patient_id=self.patient1_id,
+            assembly="GRCh37/hg19",
+            chr="7",
+            start=117119258,
+            ref_allele="TCTC",
+            alt_allele="T",
+            genotype="Homozygous",
+            user_transcript="ENST00000546407",
+            user_gene="CFTR",
+            shared="no"
+        )
+        variant2 = variant
+        # tries to create the same variant twice in one request
+        try:
+            self.decipher.create_snvs([variant, variant2], self.patient1_id)
+            self.assertTrue(False)
+        except HTTPError, ex:
+            self.assertEqual(ex.response.status_code, 400, "Expected 400 for duplicate records")
+
+        # tries to create the same variant twice in two request
+        variant1_id = self.decipher.create_snvs([variant], self.patient1_id)[0]
+        try:
+            self.decipher.create_snvs([variant2], self.patient1_id)[0]
+            self.assertTrue(False)
+        except HTTPError, ex:
+            self.assertEqual(ex.response.status_code, 400, "Expected 400 for duplicate records")
+
+        self.decipher.delete_snv(variant1_id)
 
     def test_variant_left_align(self):
         # rs864622168
-        variant2 = {
-            "patient_id": self.patient1_id,
-            "assembly": "GRCh37/hg19",
-            "chr": "1",
-            "start": 145415387,  # this is left aligned to 145415368
-            "ref_allele": "G",
-            "alt_allele": "GAGG",
-            "genotype": "Heterozygous",
-            "user_transcript": "ENST00000336751",
-            "user_gene": "HFE2",
-            "shared": "no"
-        }
-        variants = self.create_variants([variant2], self.patient1_id)
-        variant_ids = [x["patient_snv_id"] for x in variants]
-        for x in variants:
-            self.assertTrue(x["patient_snv_id"] is not None, "Empty snv id?")
-        self.delete_variants(variant_ids)
+        variant2 = Snv(
+            patient_id=self.patient1_id,
+            assembly="GRCh37/hg19",
+            chr="1",
+            start=145415387,  # this is left aligned to 145415368
+            ref_allele="G",
+            alt_allele="GAGG",
+            genotype="Heterozygous",
+            user_transcript="ENST00000336751",
+            user_gene="HFE2",
+            shared="no"
+        )
+        variant_ids = self.decipher.create_snvs([variant2], self.patient1_id)
+        self.decipher.delete_snv(variant_ids[0])
 
     def test_wrong_chromosome(self):
-        pass
+        variant = Snv(
+            patient_id=self.patient1_id,
+            assembly="GRCh37/hg19",
+            chr="chr7",
+            start=117119258,
+            ref_allele="TCTC",
+            alt_allele="T",
+            genotype="Homozygous",
+            user_transcript="ENST00000546407",
+            user_gene="CFTR",
+            shared="no"
+        )
+        try:
+            self.decipher.create_snvs([variant], self.patient1_id)
+            self.assertTrue(False)
+        except InvalidSchema, ex:
+            self.assertTrue(True, "Expected invalid schema")
 
     def test_not_matching_reference(self):
-        pass
+        # deletion TGAG > T, but at that positions it should be TCTC > T
+        variant = Snv(
+            patient_id=self.patient1_id,
+            assembly="GRCh37/hg19",
+            chr="7",
+            start=117119258,
+            ref_allele="TGAG",
+            alt_allele="T",
+            genotype="Homozygous",
+            user_transcript="ENST00000546407",
+            user_gene="CFTR",
+            shared="no"
+        )
+        try:
+            variant_ids = self.decipher.create_snvs([variant], self.patient1_id)
+            self.decipher.delete_snv(variant_ids[0])
+            self.assertTrue(False)
+        except HTTPError, ex:
+            self.assertEqual(ex.response.status_code, 400, "Expected 400 for mismatching reference")
 
     def test_wrong_transcript(self):
-        pass
+        # the fake transcript ENST123456 does not overlap this variant
+        variant = Snv(
+            patient_id=self.patient1_id,
+            assembly="GRCh37/hg19",
+            chr="7",
+            start=117119258,
+            ref_allele="TCTC",
+            alt_allele="T",
+            genotype="Homozygous",
+            user_transcript="ENST123456",
+            user_gene="CFTR",
+            shared="no"
+        )
+        try:
+            variant_ids = self.decipher.create_snvs([variant], self.patient1_id)
+            self.decipher.delete_snv(variant_ids[0])
+            self.assertTrue(False)
+        except HTTPError, ex:
+            self.assertEqual(ex.response.status_code, 400, "Expected 400 for wrong transcript")
 
     def test_wrong_gene(self):
-        pass
+        # the fake transcript ENST123456 does not overlap this variant
+        variant = Snv(
+            patient_id=self.patient1_id,
+            assembly="GRCh37/hg19",
+            chr="7",
+            start=117119258,
+            ref_allele="TCTC",
+            alt_allele="T",
+            genotype="Homozygous",
+            user_transcript="ENST00000546407",
+            user_gene="OTHER",
+            shared="no"
+        )
+        try:
+            variant_ids = self.decipher.create_snvs([variant], self.patient1_id)
+            self.decipher.delete_snv(variant_ids[0])
+            self.assertTrue(False)
+        except HTTPError, ex:
+            self.assertEqual(ex.response.status_code, 400, "Expected 400 for wrong gene")
 
     def test_coordinate_overflow(self):
-        pass
+        # the fake transcript ENST123456 does not overlap this variant
+        variant = Snv(
+            patient_id=self.patient1_id,
+            assembly="GRCh37/hg19",
+            chr="7",
+            start=1171192580000000,
+            ref_allele="TCTC",
+            alt_allele="T",
+            genotype="Homozygous",
+            user_transcript="ENST00000546407",
+            user_gene="CFTR",
+            shared="no"
+        )
+        try:
+            variant_ids = self.decipher.create_snvs([variant], self.patient1_id)
+            self.decipher.delete_snv(variant_ids[0])
+            self.assertTrue(False)
+        except HTTPError, ex:
+            self.assertEqual(ex.response.status_code, 400, "Expected 400 for unexisting position")
 
     def test_not_existing_patient(self):
-        pass
+        # the fake transcript ENST123456 does not overlap this variant
+        variant = Snv(
+            patient_id=-12345,
+            assembly="GRCh37/hg19",
+            chr="7",
+            start=117119258,
+            ref_allele="TCTC",
+            alt_allele="T",
+            genotype="Homozygous",
+            user_transcript="ENST00000546407",
+            user_gene="CFTR",
+            shared="no"
+        )
+        try:
+            variant_ids = self.decipher.create_snvs([variant], -12345)
+            self.decipher.delete_snv(variant_ids[0])
+            self.assertTrue(False)
+        except HTTPError, ex:
+            self.assertEqual(ex.response.status_code, 404, "Expected 404 for unexisting patient")
 
     def test_batch_variants(self):
         pass
@@ -134,136 +257,53 @@ class TestDecipherApi(TestCase):
         Creates a person related to a patient
         :return:
         """
-        # TODO: clarify why cannot send father and mother!
-        person = {
-            "patient_id": self.patient1_id,
-            "relation": "brother",
-            "relation_status": "unaffected"
-        }
-        person2 = {
-            "patient_id": self.patient1_id,
-            "relation": "sister",
-            "relation_status": "unaffected"
-        }
-        persons = self.create_persons([person, person2])
-        person_ids = [x["person_id"] for x in persons]
-        for x in persons:
-            self.assertTrue(x["person_id"] is not None, "Empty person id?")
-            x.pop("person_id")
-            self.assertTrue(x == person or x == person2, "Not equal to any person")
-        self.delete_persons(person_ids)
+        person = Person(
+            patient_id=self.patient1_id,
+            relation="brother",
+            relation_status="unaffected"
+        )
+        person2 = Person(
+            patient_id=self.patient1_id,
+            relation="sister",
+            relation_status="unaffected"
+        )
+        person_ids = self.decipher.create_persons([person, person2], self.patient1_id)
+
+        for person_id in person_ids:
+            self.decipher.delete_person(person_id)
+
+    def test_create_person_different_patients(self):
+        """
+        Creates a person related to a patient
+        :return:
+        """
+        person = Person(
+            patient_id=self.patient1_id,
+            relation="brother",
+            relation_status="unaffected"
+        )
+        try:
+            self.decipher.create_persons([person], self.patient2_id)
+            self.assertTrue(False)
+        except HTTPError, ex:
+            self.assertEqual(ex.response.status_code, 400, "Expected 400 for wrong patient id")
 
     def test_create_phenotypes(self):
         """
         Creates a phenotype related to a patient
         :return:
         """
-        person = {
-            "patient_id": self.patient1_id,
-            "relation": "brother",
-            "relation_status": "unaffected"
-        }
-        persons = self.create_persons([person])
-        person_ids = [x["person_id"] for x in persons]
-        phenotype = {
-            "person_id": person_ids[0],
-            "phenotype_id": 4322,
-            "observation": "present"
-        }
-        phenotypes = self.create_phenotypes([phenotype], person_ids[0])
-        phenotype_ids = [x["person_phenotype_id"] for x in phenotypes]
-        for x in phenotypes:
-            self.assertTrue(x["person_phenotype_id"] is not None, "Empty person_phenotype id?")
-            self.assertTrue(x["phenotype_id"] == phenotype["phenotype_id"], "Not equal to any phenotype")
-            self.assertTrue(x["observation"] == phenotype["observation"], "Not equal to any phenotype")
-        self.delete_phenotypes(phenotype_ids)
-        self.delete_persons(person_ids)
-
-    def create_phenotypes(self, phenotypes, person_id):
-        response = requests.post("{url_base}persons/{person_id}/phenotypes".format(
-            url_base=self.URL_BASE, person_id=person_id),
-            headers=self.AUTH_HEADERS, data=json.dumps(phenotypes))
-        self.assertTrue(response.status_code == 200, response.content)
-        phenotype_ids = [x["person_phenotype_id"] for x in response.json()]
-        output_phenotypes = []
-        for phenotype_id in phenotype_ids:
-            response = requests.get("{url_base}phenotypes/{phenotype_id}".format(
-                url_base=self.URL_BASE, phenotype_id=phenotype_id), headers=self.AUTH_HEADERS)
-            self.assertTrue(response.status_code == 200, response.content)
-            output_phenotypes.append(response.json())
-        return output_phenotypes
-
-    def delete_phenotypes(self, phenotype_ids):
-        for phenotype_id in phenotype_ids:
-            response = requests.delete("{url_base}phenotypes/{phenotype_id}".format(
-                url_base=self.URL_BASE, phenotype_id=phenotype_id),
-                headers=self.AUTH_HEADERS)
-            self.assertTrue(response.status_code == 200, response.content)
-
-    def create_persons(self, persons):
-        response = requests.post("{url_base}patients/{patient_id}/persons".format(
-            url_base=self.URL_BASE, patient_id=self.patient1_id),
-            headers=self.AUTH_HEADERS, data=json.dumps(persons))
-        self.assertTrue(response.status_code == 200, response.content)
-        person_ids = [x["person_id"] for x in response.json()]
-        output_persons = []
-        for person_id in person_ids:
-            response = requests.get("{url_base}persons/{person_id}".format(
-                url_base=self.URL_BASE, person_id=person_id), headers=self.AUTH_HEADERS)
-            self.assertTrue(response.status_code == 200, response.content)
-            output_persons.append(response.json())
-        return output_persons
-
-    def delete_persons(self, person_ids):
-        for person_id in person_ids:
-            response = requests.delete("{url_base}persons/{person_id}".format(
-                url_base=self.URL_BASE, person_id=person_id),
-                headers=self.AUTH_HEADERS)
-            self.assertTrue(response.status_code == 200, response.content)
-
-    def create_variants(self, variants, patient_id):
-        """
-        A list of variants that will be sent to Decipher
-        :param variants:
-        :param patient_id
-        :return:
-        """
-        # send variants
-        response = requests.post("{url_base}patients/{patient_id}/snvs".format(
-            url_base=self.URL_BASE, patient_id=patient_id), headers=self.AUTH_HEADERS, data=json.dumps(variants))
-        self.assertTrue(response.status_code == 200, response.content)
-        variant_ids = [x["patient_snv_id"] for x in response.json()]
-
-        # read variants
-        output_variants = []
-        for variant_id in variant_ids:
-            response = requests.get("{url_base}snvs/{variant_id}".format(
-                url_base=self.URL_BASE, variant_id=variant_id), headers=self.AUTH_HEADERS)
-            self.assertTrue(response.status_code == 200, response.content)
-            assert(response.status_code == 200)
-            variant_json = response.json()
-            output_variants.append(variant_json)
-            assert(variant_json["patient_id"] == patient_id)
-            assert(variant_json["assembly"] == variants[0]["assembly"])
-            if len(variants) == 1:
-                variant = variants[0]
-                assert(variant_json["chr"] == variant["chr"])
-                # NOTE: coordinates may change due to normalisation
-                assert(variant_json["genotype"] == variant["genotype"])
-                assert(variant_json["user_transcript"] == variant["user_transcript"])
-                assert(variant_json["user_gene"] == variant["user_gene"])
-                assert(variant_json["shared"] == variant["shared"])
-        return output_variants
-
-    def delete_variants(self, variant_ids):
-        """
-        Deletes variants from the database
-        :param variant_ids:
-        :return:
-        """
-        # delete variants
-        for variant_id in variant_ids:
-            response = requests.delete("{url_base}snvs/{variant_id}".format(
-                url_base=self.URL_BASE, variant_id=variant_id), headers=self.AUTH_HEADERS)
-            self.assertTrue(response.status_code == 200, response.content)
-            assert(response.status_code == 200)
+        person = Person(
+            patient_id=self.patient1_id,
+            relation="brother",
+            relation_status="unaffected"
+        )
+        person_ids = self.decipher.create_persons([person], self.patient1_id)
+        phenotype = Phenotype(
+            person_id=person_ids[0],
+            phenotype_id=4322,
+            observation="present"
+        )
+        phenotype_ids = self.decipher.create_phenotypes([phenotype], person_ids[0])
+        self.decipher.delete_phenotype(phenotype_ids[0])
+        self.decipher.delete_person(person_ids[0])

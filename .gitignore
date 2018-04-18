@@ -1,2 +1,5 @@
 .env
 .idea
+gel2decipher.egg-info/
+build/
+dist/
