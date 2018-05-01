@@ -1,6 +1,9 @@
 from gel2decipher.models.decipher_models import *
-from protocols.reports_3_0_0 import RDParticipant
+#from protocols.reports_3_0_0 import RDParticipant
+from protocols.participant_1_0_3 import PedigreeMember, PersonKaryotipicSex
+from protocols.cva_1_0_0 import VariantAvro, VariantCall, ConsequenceType, Assembly
 import hashlib
+import datetime
 
 
 def map_sex(gel_sex):
@@ -11,6 +14,27 @@ def map_sex(gel_sex):
         "undetermined": "unknown"
     }
     return sex_map.get(gel_sex, None)
+
+def map_kariotypic_sex(gel_kariotypic_sex):
+    """
+    When mapping to Decipher we lose XXYY, XXXY and XXXX.
+    :param gel_kariotypic_sex: 
+    :return: 
+    """
+    keriotypic_sex_map = {
+        "XX": "46XX",
+        "XY": "46XY",
+        "XO": "45X",
+        "XXY": "47XXY",
+        "XXX": "47XX",
+        "XYY": "47XYY",
+        "XXYY": "other",
+        "XXXY": "other",
+        "XXXX": "other",
+        "OTHER": "other",
+        "UNKNOWN": "unknown"
+    }
+    return keriotypic_sex_map.get(gel_kariotypic_sex, None)
 
 
 def map_patient(participant, project_id, user_id):
@@ -31,6 +55,73 @@ def map_patient(participant, project_id, user_id):
         user_id=user_id
     )
     return patient
+
+
+def map_yob_to_age(yob):
+    """
+    We assume it is the age when the patient was registered
+    :param yob:
+    :return:
+    """
+    if yob is not None and yob > 0:
+        today = datetime.today()
+        age = str(today.year - yob)
+    else:
+        age = 'unknown'
+    return age
+
+
+def obfuscate_pedigree_member(member):
+    member.participantId = hash_id(member.participantId)
+    member.pedigreeId = hash_id(member.pedigreeId)
+    member.gelSuperFamilyId = hash_id(member.gelSuperFamilyId)
+    member.fatherId = hash_id(member.fatherId)
+    member.motherId = hash_id(member.motherId)
+    member.superFatherId = hash_id(member.superFatherId)
+    member.superMotherId = hash_id(member.superMotherId)
+    return member
+
+
+def map_pedigree_member_to_patient(member, project_id, user_id):
+    """
+
+    :param user_id:
+    :param project_id:
+    :param member:
+    :type member: PedigreeMember
+    :return:
+    """
+
+    member = obfuscate_pedigree_member(member)
+    patient = Patient(
+        sex=map_kariotypic_sex(member.personKaryotypicSex),
+        reference=member.participantId,
+        project_id=project_id,
+        user_id=user_id,
+        age=map_yob_to_age(member.yearOfBirth),
+        # we mark aneuploidy only for sexual chromosomes, otherwise None as we don't have evidence for other chromosomes
+        aneuploidy=True if member.personKaryotypicSex in [
+            PersonKaryotipicSex.XO, PersonKaryotipicSex.XXX, PersonKaryotipicSex.XXXX, PersonKaryotipicSex.XXXY,
+            PersonKaryotipicSex.XXY, PersonKaryotipicSex.XXYY, PersonKaryotipicSex.XYY
+        ] else None,
+        # we are missing the carrier status consent field
+        consent=member.consentStatus.secondaryFindingsConsent,
+        note=member.toJsonString()
+    )
+    return patient
+
+
+def map_phenotype(phenotype, person_id):
+    map_presence = {
+        "yes": "present",
+        "no": "absent"
+    }
+    decipher_phenotype = Phenotype(
+        person_id=person_id,
+        phenotype_id=phenotype['term'].replace("HP:", ""),
+        observation=map_presence.get(phenotype['termPresence'], None)
+    )
+    return decipher_phenotype
 
 
 def map_variant(variant, patient_id, gel_id):
@@ -67,6 +158,34 @@ def map_variant(variant, patient_id, gel_id):
     # TODO: map inheritance from report event
 
     return snv
+
+
+def map_report_event(grch37_variant, variant_call, consequence_type, patient_id):
+    """
+
+    :param grch37_variant:
+    :type grch37_variant: VariantAvro
+    :param variant_call:
+    :type variant_call: VariantCall
+    :param consequence_type:
+    :type consequence_type: ConsequenceType
+    :return:
+    """
+    snv = Snv(
+        patient_id=patient_id,
+        assembly=map_assembly(Assembly.GRCh37),
+        chr=normalise_chromosome(grch37_variant.chromosome),
+        start=grch37_variant.position,
+        ref_allele=grch37_variant.reference,
+        alt_allele=grch37_variant.alternate,
+        genotype=map_genotype(variant_call.zygosity),
+        intergenic=False,
+        user_transcript=consequence_type.ensemblTranscriptId,
+        user_gene=consequence_type.geneName
+    )
+
+    return snv
+
 
 
 def map_genotype(gel_genotype):

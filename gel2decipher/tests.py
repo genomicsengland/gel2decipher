@@ -43,7 +43,9 @@ class TestDecipherApi(TestCase):
             age="unknown"
         )
 
-        patient_ids = self.decipher.create_patients([self.patient1, self.patient2])
+        response = self.decipher.create_patients([self.patient1, self.patient2])
+        print response
+        patient_ids = [x['patient_id'] for x in response]
         self.patient1_id = patient_ids[0]
         self.patient2_id = patient_ids[1]
 
@@ -305,5 +307,18 @@ class TestDecipherApi(TestCase):
             observation="present"
         )
         phenotype_ids = self.decipher.create_phenotypes([phenotype], person_ids[0])
+        self.decipher.delete_phenotype(phenotype_ids[0])
+        # assigns phenotype to a patient
+        persons = self.decipher.get_persons_by_patient(self.patient1_id)
+        proband = None
+        for person in persons:
+            if person['relation'] == 'patient':
+                proband = person
+        phenotype = Phenotype(
+            person_id=proband['person_id'],
+            phenotype_id=4322,
+            observation="present"
+        )
+        phenotype_ids = self.decipher.create_phenotypes([phenotype], proband['person_id'])
         self.decipher.delete_phenotype(phenotype_ids[0])
         self.decipher.delete_person(person_ids[0])

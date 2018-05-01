@@ -44,7 +44,11 @@ class DecipherClient(RestClient):
             raise InvalidSchema("Patients are invalid: {}".format(validation_errors), request=patients)
         response = self.post("projects/{project_id}/patients".format(project_id=self.project_id),
                              payload=[dict(patient) for patient in patients])
-        return [x["patient_id"] for x in response]
+        return response
+
+    def get_persons_by_patient(self, patient_id):
+        response = self.get("patients/{patient_id}/persons".format(patient_id=patient_id))
+        return response['persons']
 
     def delete_patient(self, patient_id):
         """
