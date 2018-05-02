@@ -1,9 +1,51 @@
 import os
+import logging
 from unittest import TestCase
 from requests.exceptions import HTTPError, InvalidSchema
 
 from gel2decipher.clients.decipher_client import DecipherClient
 from gel2decipher.models.decipher_models import *
+from gel2decipher.case_sender import Gel2Decipher
+
+
+class TestGel2Decipher(TestCase):
+    # credentials
+    SYSTEM_KEY = os.getenv("DECIPHER_SYSTEM_KEY")
+    USER_KEY = os.getenv("DECIPHER_USER_KEY")
+    AUTH_HEADERS = {'X-Auth-Token-System': SYSTEM_KEY, 'X-Auth-Token-User': USER_KEY}
+    DECIPHER_URL_BASE = "https://decipher.sanger.ac.uk/API/"
+
+    CIPAPI_URL_BASE = os.getenv("CIPAPI_URL")
+    CVA_URL_BASE = os.getenv("CVA_URL")
+    GEL_USER = os.getenv("GEL_USER")
+    GEL_PASSWORD = os.getenv("GEL_PASSWORD")
+
+    def setUp(self):
+        logging.basicConfig(level=logging.WARN)
+        config = {
+            'gel_user': self.GEL_USER,
+            'gel_password': self.GEL_PASSWORD,
+            'cipapi_url': self.CIPAPI_URL_BASE,
+            'cva_url': self.CVA_URL_BASE,
+            'decipher_system_key': self.SYSTEM_KEY,
+            'decipher_user_key': self.USER_KEY,
+            'decipher_url': self.DECIPHER_URL_BASE
+        }
+        self.sender = Gel2Decipher(config)
+
+    def test_send_case(self):
+
+        cases = [("615", "1"), ("502", "1"), ("1026", "1"), ("2146", "1"), ("11148", "1"), ("9007", "1"),
+                 ("333", "1"), ("3507", "1"), ("7139", "1"), ("11365", "1"), ]
+        for case_id, case_version in cases:
+            logging.warn("Case {} version {}".format(case_id, case_version))
+            try:
+                patient_id, rejected_phenotypes = self.sender.send_case(case_id, case_version)
+                variants = self.sender.decipher.get_snvs(patient_id)
+                logging.warn("Rejected phenotypes: {}".format(str(rejected_phenotypes)))
+                logging.warn(variants['snvs'])
+            except Exception, e:
+                logging.error(e.message)
 
 
 class TestDecipherApi(TestCase):

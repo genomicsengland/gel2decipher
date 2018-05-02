@@ -1,9 +1,9 @@
+import logging
 from gel2decipher.models.decipher_models import *
-#from protocols.reports_3_0_0 import RDParticipant
 from protocols.participant_1_0_3 import PedigreeMember, PersonKaryotipicSex
 from protocols.cva_1_0_0 import VariantAvro, VariantCall, ConsequenceType, Assembly
 import hashlib
-import datetime
+from datetime import datetime
 
 
 def map_sex(gel_sex):
@@ -14,6 +14,7 @@ def map_sex(gel_sex):
         "undetermined": "unknown"
     }
     return sex_map.get(gel_sex, None)
+
 
 def map_kariotypic_sex(gel_kariotypic_sex):
     """
@@ -34,7 +35,7 @@ def map_kariotypic_sex(gel_kariotypic_sex):
         "OTHER": "other",
         "UNKNOWN": "unknown"
     }
-    return keriotypic_sex_map.get(gel_kariotypic_sex, None)
+    return keriotypic_sex_map.get(gel_kariotypic_sex, "unknown")
 
 
 def map_patient(participant, project_id, user_id):
@@ -54,6 +55,7 @@ def map_patient(participant, project_id, user_id):
         consent="No",
         user_id=user_id
     )
+    logging.warn("Creating patient with id={}".format(patient.reference))
     return patient
 
 
@@ -105,8 +107,9 @@ def map_pedigree_member_to_patient(member, project_id, user_id):
             PersonKaryotipicSex.XXY, PersonKaryotipicSex.XXYY, PersonKaryotipicSex.XYY
         ] else None,
         # we are missing the carrier status consent field
-        consent=member.consentStatus.secondaryFindingsConsent,
-        note=member.toJsonString()
+        consent='Yes' if member.consentStatus.secondaryFindingConsent else 'No',
+        note="\n".join(["{term}({presence})".format(term=hpo.term, presence=hpo.termPresence)
+                        for hpo in member.hpoTermList])
     )
     return patient
 
@@ -118,9 +121,13 @@ def map_phenotype(phenotype, person_id):
     }
     decipher_phenotype = Phenotype(
         person_id=person_id,
-        phenotype_id=phenotype['term'].replace("HP:", ""),
-        observation=map_presence.get(phenotype['termPresence'], None)
+        phenotype_id=int(phenotype.term.replace("HP:", ""))
     )
+    observation = map_presence.get(phenotype.termPresence, None)
+    if observation:
+        decipher_phenotype.observation = observation
+    logging.info("Creating phenotype {}:{}".format(
+        decipher_phenotype.phenotype_id, decipher_phenotype.observation))
     return decipher_phenotype
 
 
@@ -175,7 +182,7 @@ def map_report_event(grch37_variant, variant_call, consequence_type, patient_id)
         patient_id=patient_id,
         assembly=map_assembly(Assembly.GRCh37),
         chr=normalise_chromosome(grch37_variant.chromosome),
-        start=grch37_variant.position,
+        start=grch37_variant.start,
         ref_allele=grch37_variant.reference,
         alt_allele=grch37_variant.alternate,
         genotype=map_genotype(variant_call.zygosity),
@@ -183,9 +190,10 @@ def map_report_event(grch37_variant, variant_call, consequence_type, patient_id)
         user_transcript=consequence_type.ensemblTranscriptId,
         user_gene=consequence_type.geneName
     )
+    logging.warn("Creating variant {}:{}:{}:{}:{}".format(
+        snv.assembly, snv.chr, snv.start, snv.ref_allele, snv.alt_allele))
 
     return snv
-
 
 
 def map_genotype(gel_genotype):
@@ -217,4 +225,4 @@ def normalise_chromosome(chromosome):
 
 
 def hash_id(identifier):
-    return hashlib.sha224(identifier).hexdigest()
+    return hashlib.sha224(str(identifier)).hexdigest()

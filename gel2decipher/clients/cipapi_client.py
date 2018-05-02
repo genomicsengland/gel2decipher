@@ -88,7 +88,7 @@ class CipApiClient(RestClient):
         :return:
         """
         proband = None
-        for participant in pedigree.participants:
+        for participant in pedigree.members:
             if participant.isProband:
                 proband = participant
         return proband

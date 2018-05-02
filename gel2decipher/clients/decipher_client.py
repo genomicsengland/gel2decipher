@@ -97,6 +97,15 @@ class DecipherClient(RestClient):
         variant_ids = [x["patient_snv_id"] for x in response]
         return variant_ids
 
+    def get_snvs(self, patient_id):
+        """
+
+        :param patient_id:
+        :return:
+        """
+        response = self.get("patients/{patient_id}/snvs".format(patient_id=patient_id))
+        return response
+
     def delete_snv(self, snv_id):
         """
 
