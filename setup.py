@@ -14,7 +14,8 @@ setup(
     install_requires=[
         'requests',
         'pyyaml',
-        'GelReportModels==6.1.0',
+        'GelReportModels==6.1.1',
+        'pycipapi==0.1.0',
         'pyark==0.1.0',
         'booby==0.7.0'
     ]

@@ -74,6 +74,17 @@ class DecipherClient(RestClient):
         person_ids = [x["person_id"] for x in response]
         return person_ids
 
+    def update_person(self, affection_status, person_id):
+        """
+        :type affection_status: str
+        :type person_id: str
+        :rtype:
+        """
+        response = self.patch("persons/{person_id}".format(person_id=person_id),
+                              payload={"relation_status": affection_status})
+        person_id = response["person_id"]
+        return person_id
+
     def delete_person(self, person_id):
         """
 

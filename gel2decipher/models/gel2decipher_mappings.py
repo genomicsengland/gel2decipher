@@ -1,7 +1,7 @@
 import logging
 from gel2decipher.models.decipher_models import *
-from protocols.participant_1_0_3 import PedigreeMember, PersonKaryotipicSex
-from protocols.cva_1_0_0 import VariantAvro, VariantCall, ConsequenceType, Assembly
+from protocols.participant_1_0_3 import PedigreeMember, PersonKaryotipicSex, AffectionStatus
+from protocols.cva_1_0_0 import VariantAvro, VariantCall, ConsequenceType, Assembly, TernaryOption
 import hashlib
 from datetime import datetime
 
@@ -109,7 +109,7 @@ def map_pedigree_member_to_patient(member, project_id, user_id):
         # we are missing the carrier status consent field
         consent='Yes' if member.consentStatus.secondaryFindingConsent else 'No',
         note="\n".join(["{term}({presence})".format(term=hpo.term, presence=hpo.termPresence)
-                        for hpo in member.hpoTermList])
+                        for hpo in member.hpoTermList if hpo.termPresence != TernaryOption.unknown])
     )
     return patient
 
@@ -169,14 +169,11 @@ def map_variant(variant, patient_id, gel_id):
 
 def map_report_event(grch37_variant, variant_call, consequence_type, patient_id):
     """
-
-    :param grch37_variant:
     :type grch37_variant: VariantAvro
-    :param variant_call:
     :type variant_call: VariantCall
-    :param consequence_type:
     :type consequence_type: ConsequenceType
-    :return:
+    :type patient_id: str
+    :rtype: Snv
     """
     snv = Snv(
         patient_id=patient_id,
@@ -213,11 +210,28 @@ def map_genotype(gel_genotype):
 
 
 def map_assembly(gel_assembly):
+    """
+    :type gel_assembly: Assembly
+    :return:
+    """
     assembly_map = {
-        "GRCh37": "GRCh37/hg19",
-        "GRCh38": None  # NOTE: this is not supported
+        Assembly.GRCh37: "GRCh37/hg19",
+        Assembly.GRCh38: None  # NOTE: this is not supported
     }
     return assembly_map.get(gel_assembly, None)
+
+
+def map_affection_status(gel_affection_status):
+    """
+    :type gel_affection_status: AffectionStatus
+    :rtype:
+    """
+    affection_status_map = {
+        AffectionStatus.AFFECTED: 'affected',
+        AffectionStatus.UNAFFECTED: 'unaffected',
+        AffectionStatus.UNCERTAIN: 'unknown'
+    }
+    return affection_status_map.get(gel_affection_status, 'unknown')
 
 
 def normalise_chromosome(chromosome):
