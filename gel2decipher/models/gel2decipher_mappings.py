@@ -2,9 +2,11 @@ import logging
 import gel2decipher.models.decipher_models as decipher_models
 from protocols.participant_1_0_3 import PedigreeMember, PersonKaryotipicSex, AffectionStatus, Sex
 from protocols.cva_1_0_0 import VariantAvro, VariantCall, ConsequenceType, Assembly, TernaryOption
+from protocols.reports_5_0_0 import ReportEvent
 import hashlib
 from datetime import datetime
 import copy
+import re
 
 
 def map_sex(gel_sex):
@@ -169,8 +171,29 @@ def map_variant(variant, patient_id, gel_id):
     return snv
 
 
-def map_report_event(grch37_variant, variant_call, consequence_type, patient_id):
+def map_inheritance(event_justification):
+
+    segregation_filter = re.search(
+        'Classified as: Tier.*, passed the (.*) segregation filter', event_justification, re.IGNORECASE).group(1)
+    map_event_justifications = {
+        "InheritedAutosomalDominant": decipher_models.Inheritance.unknown.value,
+        "CompoundHeterozygous": decipher_models.Inheritance.unknown.value,
+        "deNovo": decipher_models.Inheritance.de_novo_constitutive.value,
+        "SimpleRecessive": decipher_models.Inheritance.unknown.value,
+        "XLinkedSimpleRecessive": decipher_models.Inheritance.biparental.value,
+        "XLinkedMonoallelic": decipher_models.Inheritance.maternally_constitutive.value,
+        "InheritedAutosomalDominantPaternallyImprinted": decipher_models.Inheritance.paternally_constitutive.value,
+        "InheritedAutosomalDominantMaternallyImprinted": decipher_models.Inheritance.maternally_constitutive.value,
+        "XLinkedCompoundHeterozygous": decipher_models.Inheritance.unknown.value,
+        "UniparentalIsodisomy": decipher_models.Inheritance.unknown.value,
+        "MitochondrialGenome": decipher_models.Inheritance.unknown.value
+    }
+    return map_event_justifications.get(segregation_filter, decipher_models.Inheritance.unknown.value)
+
+
+def map_report_event(report_event, grch37_variant, variant_call, consequence_type, patient_id):
     """
+    :type report_event: ReportEvent
     :type grch37_variant: VariantAvro
     :type variant_call: VariantCall
     :type consequence_type: ConsequenceType
@@ -186,6 +209,7 @@ def map_report_event(grch37_variant, variant_call, consequence_type, patient_id)
         alt_allele=grch37_variant.alternate,
         genotype=map_genotype(variant_call.zygosity),
         intergenic=False,
+        inheritance= map_inheritance(report_event.eventJustification),
         user_transcript=consequence_type.ensemblTranscriptId,
         user_gene=consequence_type.geneName
     )

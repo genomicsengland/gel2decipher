@@ -242,7 +242,7 @@ class Gel2Decipher(object):
 
             # builds the variant in decipher model
             dec_variant = gel2decipher.map_report_event(
-                variant, variant_call, consequence_type, patient_id)
+                report_event.reportEvent, variant, variant_call, consequence_type, patient_id)
             uid = "{}:{}:{}:{}".format(dec_variant.chr, dec_variant.start, dec_variant.ref_allele,
                                        dec_variant.alt_allele)
             if uid not in unique_variants:
