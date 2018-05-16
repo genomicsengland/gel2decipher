@@ -1,9 +1,10 @@
 import logging
-from gel2decipher.models.decipher_models import *
-from protocols.participant_1_0_3 import PedigreeMember, PersonKaryotipicSex, AffectionStatus
+import gel2decipher.models.decipher_models as decipher_models
+from protocols.participant_1_0_3 import PedigreeMember, PersonKaryotipicSex, AffectionStatus, Sex
 from protocols.cva_1_0_0 import VariantAvro, VariantCall, ConsequenceType, Assembly, TernaryOption
 import hashlib
 from datetime import datetime
+import copy
 
 
 def map_sex(gel_sex):
@@ -48,7 +49,7 @@ def map_patient(participant, project_id, user_id):
     :return:
     """
     # TODO: parse kariotypic_sex = proband.personKaryotipicSex
-    patient = Patient(
+    patient = decipher_models.Patient(
         sex=map_sex(participant.sex),
         reference=hash_id(participant.gelId),
         project_id=project_id,
@@ -74,14 +75,15 @@ def map_yob_to_age(yob):
 
 
 def obfuscate_pedigree_member(member):
-    member.participantId = hash_id(member.participantId)
-    member.pedigreeId = hash_id(member.pedigreeId)
-    member.gelSuperFamilyId = hash_id(member.gelSuperFamilyId)
-    member.fatherId = hash_id(member.fatherId)
-    member.motherId = hash_id(member.motherId)
-    member.superFatherId = hash_id(member.superFatherId)
-    member.superMotherId = hash_id(member.superMotherId)
-    return member
+    new_member = copy.deepcopy(member)
+    new_member.participantId = hash_id(member.participantId)
+    new_member.pedigreeId = hash_id(member.pedigreeId)
+    new_member.gelSuperFamilyId = hash_id(member.gelSuperFamilyId)
+    new_member.fatherId = hash_id(member.fatherId)
+    new_member.motherId = hash_id(member.motherId)
+    new_member.superFatherId = hash_id(member.superFatherId)
+    new_member.superMotherId = hash_id(member.superMotherId)
+    return new_member
 
 
 def map_pedigree_member_to_patient(member, project_id, user_id):
@@ -95,7 +97,7 @@ def map_pedigree_member_to_patient(member, project_id, user_id):
     """
 
     member = obfuscate_pedigree_member(member)
-    patient = Patient(
+    patient = decipher_models.Patient(
         sex=map_kariotypic_sex(member.personKaryotypicSex),
         reference=member.participantId,
         project_id=project_id,
@@ -119,7 +121,7 @@ def map_phenotype(phenotype, person_id):
         "yes": "present",
         "no": "absent"
     }
-    decipher_phenotype = Phenotype(
+    decipher_phenotype = decipher_models.Phenotype(
         person_id=person_id,
         phenotype_id=int(phenotype.term.replace("HP:", ""))
     )
@@ -148,7 +150,7 @@ def map_variant(variant, patient_id, gel_id):
         raise ValueError("No called genotype for the proband")
     report_event = variant.reportEvents[0]
     gene_symbol = report_event.genomicEntities[0].geneSymbol
-    snv = Snv(
+    snv = decipher_models.Snv(
         patient_id=patient_id,
         assembly=map_assembly(variant.variantCoordinates.assembly),
         chr=normalise_chromosome(variant.variantCoordinates.chromosome),
@@ -175,7 +177,7 @@ def map_report_event(grch37_variant, variant_call, consequence_type, patient_id)
     :type patient_id: str
     :rtype: Snv
     """
-    snv = Snv(
+    snv = decipher_models.Snv(
         patient_id=patient_id,
         assembly=map_assembly(Assembly.GRCh37),
         chr=normalise_chromosome(grch37_variant.chromosome),
@@ -227,11 +229,63 @@ def map_affection_status(gel_affection_status):
     :rtype:
     """
     affection_status_map = {
-        AffectionStatus.AFFECTED: 'affected',
-        AffectionStatus.UNAFFECTED: 'unaffected',
-        AffectionStatus.UNCERTAIN: 'unknown'
+        AffectionStatus.AFFECTED: decipher_models.AffectionStatus.affected.value,
+        AffectionStatus.UNAFFECTED: decipher_models.AffectionStatus.unaffected.value,
+        AffectionStatus.UNCERTAIN: decipher_models.AffectionStatus.unknown.value
     }
-    return affection_status_map.get(gel_affection_status, 'unknown')
+    return affection_status_map.get(gel_affection_status, decipher_models.AffectionStatus.unknown.value)
+
+
+def map_relation(gel_relation, sex):
+    """
+    :type gel_relation: str
+    :type sex: Sex
+    :rtype: str
+    """
+    relation_map = {
+        'Father': decipher_models.Relation.father.value,
+        'Mother': decipher_models.Relation.mother.value,
+        'Son': decipher_models.Relation.son.value,
+        'Daughter': decipher_models.Relation.daughter.value,
+        'ChildOfUnknownSex': decipher_models.Relation.other_blood_relative.value,
+        'MaternalAunt': decipher_models.Relation.maternal_aunt.value,
+        'MaternalUncle': decipher_models.Relation.maternal_uncle.value,
+        'MaternalUncleOrAunt': decipher_models.Relation.other_blood_relative.value,
+        'PaternalAunt': decipher_models.Relation.paternal_aunt.value,
+        'PaternalUncle': decipher_models.Relation.paternal_uncle.value,
+        'PaternalUncleOrAunt': decipher_models.Relation.other_blood_relative.value,
+        'PaternalGrandmother': decipher_models.Relation.paternal_grandmother.value,
+        'PaternalGrandfather': decipher_models.Relation.paternal_grandfather.value,
+        'MaternalGrandmother': decipher_models.Relation.maternal_grandmother.value,
+        'MaternalGrandfather': decipher_models.Relation.maternal_grandfather.value,
+        'TwinsMonozygous':
+            decipher_models.Relation.brother.value if sex == Sex.MALE else decipher_models.Relation.sister.value
+            if sex == Sex.FEMALE else decipher_models.Relation.other_blood_relative.value,
+        'TwinsDizygous':
+            decipher_models.Relation.brother.value if sex == Sex.MALE else decipher_models.Relation.sister.value
+            if sex == Sex.FEMALE else decipher_models.Relation.other_blood_relative.value,
+        'TwinsUnknown':
+            decipher_models.Relation.brother.value if sex == Sex.MALE else decipher_models.Relation.sister.value
+            if sex == Sex.FEMALE else decipher_models.Relation.other_blood_relative.value,
+        'FullSiblingF': decipher_models.Relation.sister.value,
+        'FullSiblingM': decipher_models.Relation.brother.value
+    }
+    return relation_map.get(gel_relation, decipher_models.Relation.other_blood_relative.value)
+
+
+def map_pedigree_member_to_person(pedigree_member, patient_id, relation):
+    """
+    :type pedigree_member: PedigreeMember
+    :type patient_id: str
+    :type relation: str
+    :rtype: Person
+    """
+    person = decipher_models.Person(
+        patient_id=patient_id,
+        relation=map_relation(relation, pedigree_member.sex),
+        relation_status=map_affection_status(pedigree_member.affectionStatus)
+    )
+    return person
 
 
 def normalise_chromosome(chromosome):

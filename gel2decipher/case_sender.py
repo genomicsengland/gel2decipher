@@ -223,8 +223,14 @@ class Gel2Decipher(object):
             self.decipher.update_person(gel2decipher.map_affection_status(father.affectionStatus), dec_father)
             self._send_pedigree_member_phenotypes(father, dec_father)
 
-        #for member in pedigree.members:   # type: GelRDParticipant
-        #    relations = pedigree.get_relationship(member, proband)
+        for member in pedigree.members:   # type: GelRDParticipant
+            logging.info("Member of family: {}".format(member.pedigreeId))
+            if member.pedigreeId not in [proband.pedigreeId, father.pedigreeId, mother.pedigreeId]:
+                dec_person = self.decipher.create_persons(
+                    [gel2decipher.map_pedigree_member_to_person(
+                        member, patient_id, pedigree.get_relationship(member.pedigreeId, proband.pedigreeId))],
+                    patient_id)[0]
+                self._send_pedigree_member_phenotypes(member, dec_person)
 
         # push the variants to Decipher
         unique_variants = {}

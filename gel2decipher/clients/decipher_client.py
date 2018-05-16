@@ -66,6 +66,7 @@ class DecipherClient(RestClient):
         :param patient_id:
         :return:
         """
+        logging.info(str(persons))
         if not all(person.is_valid for person in persons):
             validation_errors = [dict(patient.validation_errors) for patient in persons]
             raise InvalidSchema("Persons are invalid: {}".format(validation_errors), request=persons)
