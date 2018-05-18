@@ -5,7 +5,7 @@ setup(
     name='gel2decipher',
     version='0.1.0',
     packages=find_packages(),
-    scripts=['scripts/gel2decipher.py'],
+    scripts=['scripts/gel2decipher_sender.py'],
     url='',
     license='',
     author='priesgo',

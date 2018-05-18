@@ -3,9 +3,9 @@ import logging
 from unittest import TestCase
 from requests.exceptions import HTTPError, InvalidSchema
 
-from gel2decipher.clients.decipher_client import DecipherClient
-from gel2decipher.models.decipher_models import *
-from gel2decipher.case_sender import Gel2Decipher, UnacceptableCase
+from gel2decipher_sender.clients.decipher_client import DecipherClient
+from gel2decipher_sender.models.decipher_models import *
+from gel2decipher_sender.case_sender import Gel2Decipher, UnacceptableCase
 
 
 class TestGel2Decipher(TestCase):
@@ -32,6 +32,7 @@ class TestGel2Decipher(TestCase):
             'decipher_url': self.DECIPHER_URL_BASE,
             'send_absent_phenotypes': False
         }
+        logging.info("CVA URL: {}".format(self.CVA_URL_BASE))
         self.sender = Gel2Decipher(config)
 
     def test_send_case(self):

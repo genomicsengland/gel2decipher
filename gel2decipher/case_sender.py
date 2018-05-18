@@ -1,8 +1,8 @@
 import logging
 from pycipapi.cipapi_client import CipApiClient
-from gel2decipher.clients.decipher_client import DecipherClient
-import gel2decipher.models.gel2decipher_mappings as gel2decipher
-from gel2decipher.models.decipher_models import *
+from gel2decipher_sender.clients.decipher_client import DecipherClient
+import gel2decipher_sender.models.gel2decipher_mappings as gel2decipher
+from gel2decipher_sender.models.decipher_models import *
 from protocols.migration.migration_helpers import MigrationHelpers
 from protocols.cva_1_0_0 import ReportEventEntry, ObservedVariant, VariantRepresentation, Assembly, VariantAvro, \
     VariantAnnotation, ConsequenceType, VariantCall, ReportEvent, Tier, SequenceOntologyTerm, HpoTerm, TernaryOption
@@ -171,7 +171,7 @@ class Gel2Decipher(object):
         # fetch variants from CVA
         report_events_iterator = self.report_events_client.get_report_events({
             'parent_id': case_id, 'parent_version': case_version, 're_type': 'tiered', 'tier': 'TIER1,TIER2',
-            'vcf_format': True
+            'vcf_format': True, 'full_populate': True
         })
 
         # filters down the variants

@@ -1,5 +1,5 @@
 import logging
-import gel2decipher.models.decipher_models as decipher_models
+import gel2decipher_sender.models.decipher_models as decipher_models
 from protocols.participant_1_0_3 import PedigreeMember, PersonKaryotipicSex, AffectionStatus, Sex
 from protocols.cva_1_0_0 import VariantAvro, VariantCall, ConsequenceType, Assembly, TernaryOption
 from protocols.reports_5_0_0 import ReportEvent
@@ -113,7 +113,8 @@ def map_pedigree_member_to_patient(member, project_id, user_id):
         # we are missing the carrier status consent field
         consent='Yes' if member.consentStatus.secondaryFindingConsent else 'No',
         note="\n".join(["{term}({presence})".format(term=hpo.term, presence=hpo.termPresence)
-                        for hpo in member.hpoTermList if hpo.termPresence != TernaryOption.unknown])
+                        for hpo in member.hpoTermList if hpo.termPresence != TernaryOption.unknown and
+                        hpo.termPresence != TernaryOption.no])
     )
     return patient
 

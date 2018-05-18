@@ -1,5 +1,5 @@
 import logging
-from gel2decipher.clients.rest_client import RestClient
+from gel2decipher_sender.clients.rest_client import RestClient
 from requests.exceptions import InvalidSchema
 
 

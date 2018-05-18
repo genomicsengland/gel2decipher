@@ -5,7 +5,7 @@ import json
 import abc
 from requests.compat import urljoin
 from requests.exceptions import HTTPError
-import gel2decipher.clients.backoff_retrier as backoff_retrier
+import gel2decipher_sender.clients.backoff_retrier as backoff_retrier
 
 
 class RestClient(object):
