@@ -179,7 +179,7 @@ def map_inheritance(event_justification):
         "InheritedAutosomalDominant": decipher_models.Inheritance.unknown.value,
         "CompoundHeterozygous": decipher_models.Inheritance.unknown.value,
         "deNovo": decipher_models.Inheritance.de_novo_constitutive.value,
-        "SimpleRecessive": decipher_models.Inheritance.unknown.value,
+        "SimpleRecessive": decipher_models.Inheritance.biparental.value,
         "XLinkedSimpleRecessive": decipher_models.Inheritance.biparental.value,
         "XLinkedMonoallelic": decipher_models.Inheritance.maternally_constitutive.value,
         "InheritedAutosomalDominantPaternallyImprinted": decipher_models.Inheritance.paternally_constitutive.value,
