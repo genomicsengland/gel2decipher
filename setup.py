@@ -5,7 +5,7 @@ setup(
     name='gel2decipher',
     version='0.1.0',
     packages=find_packages(),
-    scripts=['scripts/gel2decipher.py'],
+    scripts=['scripts/gel2decipher_sender.py'],
     url='',
     license='',
     author='priesgo',
@@ -14,8 +14,10 @@ setup(
     install_requires=[
         'requests',
         'pyyaml',
-        'GelReportModels==6.1.0',
+        'GelReportModels==6.1.1',
+        'pycipapi==0.1.0',
         'pyark==0.1.0',
-        'booby==0.7.0'
+        'booby==0.7.0',
+        'enum34'
     ]
 )

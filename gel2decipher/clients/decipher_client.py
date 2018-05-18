@@ -1,5 +1,5 @@
 import logging
-from gel2decipher.clients.rest_client import RestClient
+from gel2decipher_sender.clients.rest_client import RestClient
 from requests.exceptions import InvalidSchema
 
 
@@ -66,6 +66,7 @@ class DecipherClient(RestClient):
         :param patient_id:
         :return:
         """
+        logging.info(str(persons))
         if not all(person.is_valid for person in persons):
             validation_errors = [dict(patient.validation_errors) for patient in persons]
             raise InvalidSchema("Persons are invalid: {}".format(validation_errors), request=persons)
@@ -73,6 +74,17 @@ class DecipherClient(RestClient):
                              payload=[dict(person) for person in persons])
         person_ids = [x["person_id"] for x in response]
         return person_ids
+
+    def update_person(self, affection_status, person_id):
+        """
+        :type affection_status: str
+        :type person_id: str
+        :rtype:
+        """
+        response = self.patch("persons/{person_id}".format(person_id=person_id),
+                              payload={"relation_status": affection_status})
+        person_id = response["person_id"]
+        return person_id
 
     def delete_person(self, person_id):
         """

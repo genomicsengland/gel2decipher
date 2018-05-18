@@ -5,7 +5,7 @@ import json
 import abc
 from requests.compat import urljoin
 from requests.exceptions import HTTPError
-import gel2decipher.clients.backoff_retrier as backoff_retrier
+import gel2decipher_sender.clients.backoff_retrier as backoff_retrier
 
 
 class RestClient(object):
@@ -41,7 +41,7 @@ class RestClient(object):
         if endpoint is None or payload is None:
             raise ValueError("Must define payload and endpoint before post")
         url = self.build_url(self.url_base, endpoint)
-        logging.info("{date} {method} {url}".format(
+        logging.debug("{date} {method} {url}".format(
             date=datetime.datetime.now(),
             method="POST",
             url="{}?{}".format(url, "&".join(["{}={}".format(k, v) for k, v in url_params.iteritems()]))
@@ -53,11 +53,27 @@ class RestClient(object):
         self._verify_response(response)
         return json.loads(response.content) if response.content else None
 
+    def patch(self, endpoint, payload, url_params={}, session=True):
+        if endpoint is None or payload is None:
+            raise ValueError("Must define payload and endpoint before post")
+        url = self.build_url(self.url_base, endpoint)
+        logging.debug("{date} {method} {url}".format(
+            date=datetime.datetime.now(),
+            method="PATCH",
+            url="{}?{}".format(url, "&".join(["{}={}".format(k, v) for k, v in url_params.iteritems()]))
+        ))
+        if session:
+            response = self.session.patch(url, json=payload, params=url_params, headers=self.headers)
+        else:
+            response = requests.patch(url, json=payload, params=url_params, headers=self.headers)
+        self._verify_response(response)
+        return json.loads(response.content) if response.content else None
+
     def get(self, endpoint, url_params={}, session=True):
         if endpoint is None:
             raise ValueError("Must define endpoint before get")
         url = self.build_url(self.url_base, endpoint)
-        logging.info("{date} {method} {url}".format(
+        logging.debug("{date} {method} {url}".format(
             date=datetime.datetime.now(),
             method="GET",
             url="{}?{}".format(url, "&".join(["{}={}".format(k, v) for k, v in url_params.iteritems()]))
@@ -73,7 +89,7 @@ class RestClient(object):
         if endpoint is None:
             raise ValueError("Must define endpoint before get")
         url = self.build_url(self.url_base, endpoint)
-        logging.info("{date} {method} {url}".format(
+        logging.debug("{date} {method} {url}".format(
             date=datetime.datetime.now(),
             method="DELETE",
             url="{}?{}".format(url, "&".join(["{}={}".format(k, v) for k, v in url_params.iteritems()]))
@@ -83,7 +99,7 @@ class RestClient(object):
         return json.loads(response.content) if response.content else None
 
     def _verify_response(self, response):
-        logging.info("{date} response status code {status}".format(
+        logging.debug("{date} response status code {status}".format(
             date=datetime.datetime.now(),
             status=response.status_code)
         )
